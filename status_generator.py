@@ -95,8 +95,8 @@ class StatusGenerator:
         """
         # 这里调用你的机器学习模型
         # 返回预测结果（状态和置信度）
-        status = 1  # 1 表示有人，0 表示无人
-        confidence = 0.95  # 置信度
+        status = np.random.randint(0, 2)  # 1 表示有人，0 表示无人
+        confidence = np.random.uniform(0, 1)  # 置信度
         self.logger.info(f"Predicted status: {status}, confidence: {confidence}")
         return status, confidence
 
