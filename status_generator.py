@@ -157,11 +157,10 @@ class StatusGenerator:
                 
                 self.logger.info("Processed 30 CSI records.")
             else:
-                # 如果数据不足 30 条，记录日志并等待
+                # 如果数据不足 30 条，记录日志
                 self.logger.info(f"Waiting for more data. Current records: {len(csi_data)}/30")
-            
-            # 每隔 1 秒检查一次
-            time.sleep(1)
+                # 等待 1.5 秒
+                time.sleep(1.5)
 
     def stop(self):
         """
