@@ -80,9 +80,9 @@ class StatusGenerator:
             query = """
             UPDATE raw_data
             SET processed = 1
-            WHERE id IN %s
-            """
-            cursor.execute(query, (tuple(data_ids),))
+            WHERE id IN (%s)
+            """ % ','.join(['%s'] * len(data_ids))
+            cursor.execute(query, tuple(data_ids))
             self.db_connection.commit()
             cursor.close()
             self.logger.info(f"Marked {len(data_ids)} records as processed.")
