@@ -13,6 +13,7 @@ CREATE TABLE raw_data (
     device_id VARCHAR(32) NOT NULL,        -- 设备ID
     timestamp BIGINT NOT NULL,        -- 校正后的时间戳（精确到毫秒）
     csi_data JSON NOT NULL,                -- CSI数据（JSON格式）
+    processed TINYINT(1) NOT NULL DEFAULT 0,  -- 是否已处理（0: 未处理, 1: 已处理）
     INDEX idx_device_timestamp (device_id, timestamp)  -- 设备和时间戳的联合索引
 );
 
