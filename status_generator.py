@@ -53,7 +53,7 @@ class StatusGenerator:
         try:
             cursor = self.db_connection.cursor(dictionary=True)
             query = """
-            SELECT id, timestamp, csi_data
+            SELECT SQL_NO_CACHE id, timestamp, csi_data
             FROM raw_data
             WHERE device_id = %s AND processed = 0
             ORDER BY timestamp DESC
