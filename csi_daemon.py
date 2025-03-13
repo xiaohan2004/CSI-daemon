@@ -14,13 +14,25 @@ def setup_logger(log_file):
     if log_dir and not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        filename=log_file,
-        filemode='a'
-    )
-    return logging.getLogger()
+    # 创建一个格式化器
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    # 创建文件处理器
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+
+    # 获取根日志记录器
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    
+    # 清除所有已存在的处理器
+    root_logger.handlers = []
+    
+    # 添加文件处理器
+    root_logger.addHandler(file_handler)
+
+    return root_logger
 
 def daemonize(pid_file):
     """

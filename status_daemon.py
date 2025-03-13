@@ -5,6 +5,7 @@ import signal
 import logging
 from status_generator import StatusGenerator
 
+
 def setup_logger(log_file):
     """
     配置日志记录器，将日志输出到文件。
@@ -14,13 +15,34 @@ def setup_logger(log_file):
     if log_dir and not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        filename=log_file,
-        filemode='a'
+    # 创建一个格式化器
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    return logging.getLogger()
+
+    # 创建文件处理器
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.DEBUG)
+
+    # 创建控制台处理器
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.INFO)
+
+    # 获取根日志记录器
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    # 清除所有已存在的处理器
+    root_logger.handlers = []
+
+    # 添加处理器
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+
+    return root_logger
+
 
 def daemonize(pid_file):
     """
@@ -40,17 +62,18 @@ def daemonize(pid_file):
         sys.exit(0)  # 退出父进程
 
     # 写入 PID 文件
-    with open(pid_file, 'w') as f:
+    with open(pid_file, "w") as f:
         f.write(str(os.getpid()))
 
     # 重定向标准输入、输出和错误
     sys.stdout.flush()
     sys.stderr.flush()
-    with open('/dev/null', 'r') as f:
+    with open("/dev/null", "r") as f:
         os.dup2(f.fileno(), sys.stdin.fileno())
-    with open('/dev/null', 'a') as f:
+    with open("/dev/null", "a") as f:
         os.dup2(f.fileno(), sys.stdout.fileno())
         os.dup2(f.fileno(), sys.stderr.fileno())
+
 
 def start_daemon(pid_file, log_file):
     """
@@ -68,7 +91,7 @@ def start_daemon(pid_file, log_file):
     daemonize(pid_file)
 
     # 守护进程的主逻辑
-    generator = StatusGenerator(device_id='device1')
+    generator = StatusGenerator(device_id="device1")
     generator.start()
 
     try:
@@ -78,6 +101,7 @@ def start_daemon(pid_file, log_file):
         logger.info("Stopping status generator daemon...")
         generator.stop()
 
+
 def stop_daemon(pid_file):
     """
     停止守护进程。
@@ -86,7 +110,7 @@ def stop_daemon(pid_file):
         print("Status generator daemon is not running.")
         return
 
-    with open(pid_file, 'r') as f:
+    with open(pid_file, "r") as f:
         pid = int(f.read())
 
     try:
@@ -97,28 +121,29 @@ def stop_daemon(pid_file):
         print("Status generator daemon process not found.")
         os.remove(pid_file)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # 获取当前目录
     current_dir = os.path.dirname(os.path.abspath(__file__))
 
     # 定义 tmp 目录路径
-    tmp_dir = os.path.join(current_dir, 'tmp')
+    tmp_dir = os.path.join(current_dir, "tmp")
 
     # 确保 tmp 目录存在
     if not os.path.exists(tmp_dir):
         os.makedirs(tmp_dir)
 
     # 定义 PID 文件和日志文件路径
-    pid_file = os.path.join(tmp_dir, 'status_daemon.pid')  # PID 文件路径
-    log_file = os.path.join(tmp_dir, 'status_daemon.log')  # 日志文件路径
+    pid_file = os.path.join(tmp_dir, "status_daemon.pid")  # PID 文件路径
+    log_file = os.path.join(tmp_dir, "status_daemon.log")  # 日志文件路径
 
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} start|stop")
         sys.exit(1)
 
-    if sys.argv[1] == 'start':
+    if sys.argv[1] == "start":
         start_daemon(pid_file, log_file)
-    elif sys.argv[1] == 'stop':
+    elif sys.argv[1] == "stop":
         stop_daemon(pid_file)
     else:
         print(f"Usage: {sys.argv[0]} start|stop")

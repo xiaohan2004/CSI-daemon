@@ -47,14 +47,12 @@ class ReceiveCSI(abc.ABC):
 
 class ReadFromUDP(ReceiveCSI):
     def __init__(self, port, ip='', device_id='device1'):
-        """
-        初始化UDP接收器。
-        """
         super().__init__()
         self.port = port
         self.ip = ip
         self.device_id = device_id
         self.running = False
+        # 使用模块名作为 logger 名称
         self.logger = logging.getLogger(__name__)
         self.db_connection = self._connect_to_database()
 
