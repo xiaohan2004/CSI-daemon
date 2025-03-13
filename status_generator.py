@@ -107,7 +107,7 @@ class StatusGenerator:
             FROM raw_data
             WHERE device_id = %s 
             AND processed = 0
-            ORDER BY timestamp DESC
+            ORDER BY timestamp
             LIMIT %s
             """
             self.logger.debug(
