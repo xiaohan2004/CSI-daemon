@@ -10,10 +10,12 @@ import mysql.connector
 from mysql.connector import Error
 import configparser
 
+
 class ReceiveCSI(abc.ABC):
     """
     用于接收CSI数据的基类。
     """
+
     def __init__(self):
         self.handle_csi = None
 
@@ -46,7 +48,7 @@ class ReceiveCSI(abc.ABC):
 
 
 class ReadFromUDP(ReceiveCSI):
-    def __init__(self, port, ip='', device_id='device1'):
+    def __init__(self, port, ip="", device_id="device1"):
         super().__init__()
         self.port = port
         self.ip = ip
@@ -64,78 +66,165 @@ class ReadFromUDP(ReceiveCSI):
         config = configparser.ConfigParser()
 
         # 读取配置文件
-        config.read('db_config.ini')
+        config.read("db_config.ini")
 
         # 获取数据库连接信息
         db_config = {
-            'host': config.get('database', 'host'),
-            'user': config.get('database', 'user'),
-            'password': config.get('database', 'password'),
-            'database': config.get('database', 'database')
+            "host": config.get("database", "host"),
+            "user": config.get("database", "user"),
+            "password": config.get("database", "password"),
+            "database": config.get("database", "database"),
         }
         try:
             connection = mysql.connector.connect(
-                host = db_config['host'],
-                user = db_config['user'],
-                password = db_config['password'],
-                database = db_config['database']
+                host=db_config["host"],
+                user=db_config["user"],
+                password=db_config["password"],
+                database=db_config["database"],
+                # 添加以下参数
+                autocommit=True,
+                buffered=True,
+                connection_timeout=30,
+                # 设置重连参数
+                get_warnings=True,
+                raise_on_warnings=True,
+                # 添加连接参数
+                sql_mode="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION",
             )
+            self.logger.info("Successfully connected to the database.")
             return connection
         except Error as e:
             self.logger.error(f"Error connecting to MySQL: {e}")
             return None
 
+    def _check_connection(self):
+        """
+        检查数据库连接是否有效，如果无效则重新连接。
+        """
+        try:
+            if self.db_connection is None or not self.db_connection.is_connected():
+                self.logger.warning("数据库连接已断开，尝试重新连接...")
+                self.db_connection = self._connect_to_database()
+                return self.db_connection is not None
+            return True
+        except Error as e:
+            self.logger.error(f"检查数据库连接时发生错误: {e}")
+            return False
+
     def _insert_csi_data(self, timestamp, csi_data):
         """
         将CSI数据插入数据库。
         """
-        if not self.db_connection:
-            return
+        # 检查并确保数据库连接
+        if not self._check_connection():
+            self.logger.error("无法插入CSI数据：数据库连接失败")
+            return False
 
-        try:
-            cursor = self.db_connection.cursor()
-            query = """
-            INSERT INTO raw_data (device_id, timestamp, csi_data)
-            VALUES (%s, %s, %s)
-            """
-            cursor.execute(query, (self.device_id, timestamp, json.dumps(csi_data)))
-            self.db_connection.commit()
-            cursor.close()
-        except Error as e:
-            self.logger.error(f"Error inserting CSI data: {e}")
+        max_retries = 3
+        retry_count = 0
+
+        while retry_count < max_retries:
+            try:
+                cursor = self.db_connection.cursor()
+                query = """
+                INSERT INTO raw_data (device_id, timestamp, csi_data)
+                VALUES (%s, %s, %s)
+                """
+                cursor.execute(query, (self.device_id, timestamp, json.dumps(csi_data)))
+                self.db_connection.commit()
+                cursor.close()
+                return True
+            except Error as e:
+                retry_count += 1
+                self.logger.error(
+                    f"插入CSI数据时发生错误 (尝试 {retry_count}/{max_retries}): {e}"
+                )
+
+                if retry_count < max_retries:
+                    self.logger.info("尝试重新连接数据库...")
+                    self.db_connection = self._connect_to_database()
+                    time.sleep(1)  # 等待1秒后重试
+                else:
+                    self.logger.error("达到最大重试次数，放弃插入数据")
+                    return False
+            except Exception as e:
+                self.logger.error(f"插入数据时发生未预期的错误: {e}")
+                return False
+            finally:
+                try:
+                    if "cursor" in locals() and cursor is not None:
+                        cursor.close()
+                except Error as e:
+                    self.logger.error(f"关闭游标时发生错误: {e}")
 
     def start(self):
         """
         开始接收CSI数据。
         """
+
         def receive():
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             client_address = (self.ip, self.port)
             sock.bind(client_address)
             self.logger.info("Start receiving CSI data...")
+
+            failed_inserts = 0
+            last_receive_time = time.time()  # 记录最后一次接收数据的时间
+
             try:
                 while self.running:
-                    data, address = sock.recvfrom(4096)
-                    if data != b'HEART' and len(data) == 132:
-                        # 获取当前时间作为时间戳
-                        current_timestamp = int(time.time() * 1000)  # 毫秒级时间戳
-                        # 解析 CSI 数据
-                        csi_raw = struct.unpack('128b', data[4:])
-                        csi = np.zeros(64, dtype=np.complex64)
-                        for i in range(0, 128, 2):
-                            csi[i // 2] = csi_raw[i + 1] + csi_raw[i] * 1j
-                        # 将 CSI 数据转换为 JSON 格式
-                        csi_json = {
-                            'real': [np.real(x).item() for x in csi],
-                            'imag': [np.imag(x).item() for x in csi]
-                        }
-                        # 插入数据库
-                        self._insert_csi_data(current_timestamp, csi_json)
-                        # 传递给回调函数
-                        self._send_one_csi({
-                            'timestamp': current_timestamp,
-                            'csi': csi
-                        })
+                    try:
+                        # 设置接收超时
+                        sock.settimeout(5.0)  # 5秒超时
+                        data, address = sock.recvfrom(4096)
+
+                        if data != b"HEART" and len(data) == 132:
+                            current_timestamp = int(time.time() * 1000)
+                            last_receive_time = time.time()  # 更新最后接收时间
+
+                            try:
+                                csi_raw = struct.unpack("128b", data[4:])
+                                csi = np.zeros(64, dtype=np.complex64)
+                                for i in range(0, 128, 2):
+                                    csi[i // 2] = csi_raw[i + 1] + csi_raw[i] * 1j
+
+                                csi_json = {
+                                    "real": [np.real(x).item() for x in csi],
+                                    "imag": [np.imag(x).item() for x in csi],
+                                }
+
+                                # 插入数据并检查结果
+                                if self._insert_csi_data(current_timestamp, csi_json):
+                                    failed_inserts = 0  # 重置失败计数
+                                else:
+                                    failed_inserts += 1
+                                    self.logger.warning(
+                                        f"数据库插入失败 {failed_inserts} 次"
+                                    )
+
+                                # 传递给回调函数
+                                self._send_one_csi(
+                                    {"timestamp": current_timestamp, "csi": csi}
+                                )
+
+                            except struct.error as e:
+                                self.logger.error(f"解析CSI数据时发生错误: {e}")
+                            except Exception as e:
+                                self.logger.error(f"处理CSI数据时发生未预期的错误: {e}")
+
+                    except socket.timeout:
+                        # 接收超时，记录日志但继续运行
+                        current_time = time.time()
+                        time_since_last_receive = current_time - last_receive_time
+                        self.logger.info(
+                            f"已经 {time_since_last_receive:.1f} 秒没有收到数据"
+                        )
+                        continue
+
+                    except socket.error as e:
+                        self.logger.error(f"接收数据时发生socket错误: {e}")
+                        time.sleep(1)  # 发生错误时等待1秒
+
             finally:
                 sock.close()
                 if self.db_connection:
@@ -154,17 +243,17 @@ class ReadFromUDP(ReceiveCSI):
 
 
 # 示例代码
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 配置日志
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        filename='/tmp/csi_receiver.log',
-        filemode='a'
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        filename="/tmp/csi_receiver.log",
+        filemode="a",
     )
 
     # 创建ReadFromUDP实例
-    receiver = ReadFromUDP(1234, device_id='device1')
+    receiver = ReadFromUDP(1234, device_id="device1")
 
     # 设置处理CSI数据的回调函数
     def handle_csi(csi):
