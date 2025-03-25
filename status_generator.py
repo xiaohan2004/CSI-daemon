@@ -223,14 +223,21 @@ class StatusGenerator:
             INSERT INTO status (device_id, start_timestamp, end_timestamp, status, confidence)
             VALUES (%s, %s, %s, %s, %s)
             """
-            cursor.execute(
-                query,
-                (self.device_id, start_timestamp, end_timestamp, status, confidence),
+            # 确保数据类型正确
+            values = (
+                self.device_id,
+                int(start_timestamp),  # 转换为普通的 Python int
+                int(end_timestamp),  # 转换为普通的 Python int
+                int(status),  # 转换为普通的 Python int
+                float(confidence),  # 转换为普通的 Python float
             )
+
+            cursor.execute(query, values)
             self.db_connection.commit()
             cursor.close()
             self.logger.info(
-                f"Inserted status data: {start_timestamp} to {end_timestamp}, status={status}, confidence={confidence}"
+                f"Inserted status data: {start_timestamp} to {end_timestamp}, "
+                f"status={status}, confidence={confidence}"
             )
         except Error as e:
             self.logger.error(f"Error inserting status data: {e}")
