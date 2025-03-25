@@ -5,6 +5,7 @@ import numpy as np
 import mysql.connector
 from mysql.connector import Error
 import configparser
+from predict import Predictor
 
 
 class StatusGenerator:
@@ -14,6 +15,15 @@ class StatusGenerator:
         # 使用模块名作为 logger 名称
         self.logger = logging.getLogger(__name__)
         self.db_connection = self._connect_to_database()
+
+        # 初始化预测器
+        predictor_config = {
+            "model_name": "ResNet50",  # 使用的模型名称
+            "model_path": "model.pth",  # 模型文件路径
+            "signal_process_method": "mean_filter",  # 信号处理方法
+            "feature_type": "振幅",  # 特征类型
+        }
+        self.predictor = Predictor(**predictor_config)
 
     def _connect_to_database(self):
         """
@@ -167,16 +177,38 @@ class StatusGenerator:
         except Error as e:
             self.logger.error(f"Error marking data as processed: {e}")
 
-    def _predict_status(self, csi_data):
+    def _predict_status(self, csi_values):
         """
-        调用机器学习模型进行预测。
+        使用预测器进行预测。
+
+        参数:
+            csi_values: 包含30个CSI数据的列表，每个元素是一个复数numpy数组
+
+        返回:
+            (status, confidence): 预测的状态(0或1)和置信度
         """
-        # 这里调用你的机器学习模型
-        # 返回预测结果（状态和置信度）
-        status = np.random.randint(0, 2)  # 1 表示有人，0 表示无人
-        confidence = np.random.uniform(0, 1)  # 置信度
-        self.logger.info(f"Predicted status: {status}, confidence: {confidence}")
-        return status, confidence
+        try:
+            # 将CSI数据转换为numpy数组
+            csi_data = np.array(csi_values)
+
+            # 调用预测器进行预测
+            predictions = self.predictor.predict_from_array(csi_data)
+
+            if predictions:
+                # 获取最后一个预测结果
+                last_prediction = predictions[-1]
+                status = last_prediction["class"]
+                confidence = float(last_prediction["confidence"])
+
+                self.logger.info(f"预测状态: {status}, 置信度: {confidence:.4f}")
+                return status, confidence
+            else:
+                self.logger.warning("预测失败，返回默认值")
+                return 0, 0.0
+
+        except Exception as e:
+            self.logger.error(f"预测过程中发生错误: {e}")
+            return 0, 0.0
 
     def _insert_status_data(self, start_timestamp, end_timestamp, status, confidence):
         """
