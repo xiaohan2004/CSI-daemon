@@ -85,7 +85,7 @@ class StatusGenerator:
             self.logger.error(f"检查数据库连接时发生错误: {e}")
             return False
 
-    def _fetch_csi_data(self, limit=30):
+    def _fetch_csi_data(self, limit=90):
         """
         从数据库中获取未处理的最新 CSI 数据。
         """
@@ -264,12 +264,12 @@ class StatusGenerator:
         while self.running:
             # 获取最新的未处理 CSI 数据
             self.logger.debug("尝试获取新的 CSI 数据...")
-            csi_data = self._fetch_csi_data(limit=30)
+            csi_data = self._fetch_csi_data(limit=90)
 
             current_time = time.time()
 
-            # 检查是否恰好有 30 条数据
-            if len(csi_data) == 30:
+            # 检查是否有足够的数据
+            if len(csi_data) == 90:
                 consecutive_empty_count = 0
                 last_success_time = current_time
 
@@ -278,25 +278,30 @@ class StatusGenerator:
                 csi_values = [self._parse_csi_json(row["csi_data"]) for row in csi_data]
                 data_ids = [row["id"] for row in csi_data]
 
-                # 调用机器学习模型进行预测
-                status, confidence = self._predict_status(csi_values)
+                # 只使用中间30条数据进行预测
+                middle_start = 30
+                middle_end = 60
+                middle_csi_values = csi_values[middle_start:middle_end]
 
-                # 插入状态数据
+                # 调用机器学习模型进行预测
+                status, confidence = self._predict_status(middle_csi_values)
+
+                # 插入状态数据，使用90条数据的时间范围
                 self._insert_status_data(
                     timestamps[0], timestamps[-1], status, confidence
                 )
 
-                # 将处理过的数据标记为已处理
+                # 将所有90条数据标记为已处理
                 self._mark_data_as_processed(data_ids)
 
-                self.logger.info("Processed 30 CSI records.")
+                self.logger.info("Processed 90 CSI records.")
             else:
                 # 添加更详细的等待信息
                 consecutive_empty_count += 1
                 time_since_last_success = current_time - last_success_time
 
                 self.logger.info(
-                    f"等待更多数据。当前记录数: {len(csi_data)}/30, "
+                    f"等待更多数据。当前记录数: {len(csi_data)}/90, "
                     f"已等待: {time_since_last_success:.1f}秒, "
                     f"连续等待次数: {consecutive_empty_count}"
                 )
@@ -310,9 +315,6 @@ class StatusGenerator:
                         f"已经 {time_since_last_success:.1f} 秒没有收到足够的新数据，"
                         f"请检查数据源是否正常工作"
                     )
-
-                # 等待 1.5 秒
-                time.sleep(1.5)
 
     def stop(self):
         """
