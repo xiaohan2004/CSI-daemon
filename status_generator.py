@@ -127,8 +127,20 @@ class StatusGenerator:
             cursor.execute(query, (self.device_id, limit))
             rows = cursor.fetchall()
 
-            # 确保提交事务
-            self.db_connection.commit()
+            # 将选中的数据标记为正在处理
+            if rows:
+                ids = [row["id"] for row in rows]
+                update_query = """
+                UPDATE raw_data
+                SET processed = -1
+                WHERE id IN (%s)
+                """ % ",".join(
+                    ["%s"] * len(ids)
+                )
+                cursor.execute(update_query, tuple(ids))
+                # 确保提交事务
+                self.db_connection.commit()
+
             cursor.close()
 
             # 添加更详细的日志

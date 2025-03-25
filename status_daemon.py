@@ -90,16 +90,33 @@ def start_daemon(pid_file, log_file):
     # 转换为守护进程
     daemonize(pid_file)
 
-    # 守护进程的主逻辑
-    generator = StatusGenerator(device_id="device1")
-    generator.start()
+    # 创建多个生成器实例
+    generators = []
+    num_generators = 5  # 创建5个生成器实例
 
     try:
+        # 启动多个生成器，每个错开2秒
+        for i in range(num_generators):
+            generator = StatusGenerator()  # 使用默认device_id
+            generators.append(generator)
+            generator.start()
+            logger.info(f"Started generator {i+1}")
+            time.sleep(1.5)  # 错开启动时间
+
+        # 保持进程运行
         while True:
-            time.sleep(1)  # 保持守护进程运行
-    except KeyboardInterrupt:
-        logger.info("Stopping status generator daemon...")
-        generator.stop()
+            time.sleep(1)
+
+    except Exception as e:
+        logger.error(f"Error in daemon: {e}")
+    finally:
+        # 停止所有生成器
+        for generator in generators:
+            try:
+                generator.stop()
+                generator.close()
+            except Exception as e:
+                logger.error(f"Error stopping generator: {e}")
 
 
 def stop_daemon(pid_file):
