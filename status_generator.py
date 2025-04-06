@@ -19,7 +19,7 @@ class StatusGenerator:
         # 初始化预测器
         predictor_config = {
             "model_name": "ResNet50",  # 使用的模型名称
-            "model_path": "model.pth",  # 模型文件路径
+            "model_path": "./saved_models/model.pth",  # 模型文件路径
             "signal_process_method": "mean_filter",  # 信号处理方法
             "feature_type": "振幅",  # 特征类型
         }
