@@ -16,13 +16,8 @@ class StatusGenerator:
         self.logger = logging.getLogger(__name__)
         self.db_connection = self._connect_to_database()
 
-        # 初始化预测器
-        predictor_config = {
-            "model_name": "ResNet50",  # 使用的模型名称
-            "model_path": "./saved_models/model.pth",  # 模型文件路径
-            "signal_process_method": "mean_filter",  # 信号处理方法
-            "feature_type": "振幅",  # 特征类型
-        }
+        # 从配置文件初始化预测器
+        predictor_config = self._load_predictor_config()
         self.predictor = Predictor(**predictor_config)
 
     def _connect_to_database(self):
@@ -250,6 +245,37 @@ class StatusGenerator:
         real_part = np.array(csi_dict["real"], dtype=np.float32)
         imag_part = np.array(csi_dict["imag"], dtype=np.float32)
         return real_part + 1j * imag_part
+
+    def _load_predictor_config(self):
+        """
+        从配置文件加载预测器配置。
+        """
+        try:
+            config = configparser.ConfigParser()
+            config.read("predictor_config.ini")
+
+            predictor_config = {
+                "model_name": config.get("predictor", "model_name"),
+                "model_path": config.get("predictor", "model_path"),
+                "signal_process_method": config.get(
+                    "predictor", "signal_process_method"
+                ),
+                "feature_type": config.get("predictor", "feature_type"),
+            }
+
+            self.logger.info(f"成功加载预测器配置: {predictor_config}")
+            return predictor_config
+        except Exception as e:
+            self.logger.error(f"加载预测器配置失败: {e}")
+            # 使用默认配置
+            default_config = {
+                "model_name": "ResNet50",
+                "model_path": "./saved_models/model.pth",
+                "signal_process_method": "mean_filter",
+                "feature_type": "振幅",
+            }
+            self.logger.warning(f"使用默认配置: {default_config}")
+            return default_config
 
     def start(self):
         """
