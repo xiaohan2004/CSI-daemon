@@ -5,7 +5,7 @@ import os
 
 from utils import correct_sampling
 
-LEN_W = 30
+LEN_W = 200
 STEP_DISTANCE = 10
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 128
