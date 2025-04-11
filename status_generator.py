@@ -316,14 +316,14 @@ class StatusGenerator:
                 # 将所有LEN条数据标记为已处理
                 self._mark_data_as_processed(data_ids)
 
-                self.logger.info("Processed " + LEN + " CSI records.")
+                self.logger.info(f"Processed {LEN} CSI records.")
             else:
                 # 添加更详细的等待信息
                 consecutive_empty_count += 1
                 time_since_last_success = current_time - last_success_time
 
                 self.logger.info(
-                    f"等待更多数据。当前记录数: {len(csi_data)}/"+LEN+", "
+                    f"等待更多数据。当前记录数: {len(csi_data)}/{LEN}, "
                     f"已等待: {time_since_last_success:.1f}秒, "
                     f"连续等待次数: {consecutive_empty_count}"
                 )
