@@ -1,2 +1,3 @@
 db_config.ini
 initdb.sh
+*.pth
