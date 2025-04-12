@@ -170,6 +170,8 @@ class ReadFromUDP(ReceiveCSI):
 
             failed_inserts = 0
             last_receive_time = time.time()  # 记录最后一次接收数据的时间
+            received_packets = 0
+            start_time = time.time()
 
             try:
                 while self.running:
@@ -178,9 +180,23 @@ class ReadFromUDP(ReceiveCSI):
                         sock.settimeout(5.0)  # 5秒超时
                         data, address = sock.recvfrom(4096)
 
+                        # 统计接收频率
+                        received_packets += 1
+                        current_time = time.time()
+                        if current_time - start_time >= 10:  # 每10秒输出一次统计
+                            rate = received_packets / (current_time - start_time)
+                            self.logger.info(
+                                f"接收频率: {rate:.2f} 包/秒，共 {received_packets} 包"
+                            )
+                            received_packets = 0
+                            start_time = current_time
+
                         if data != b"HEART" and len(data) == 132:
                             current_timestamp = int(time.time() * 1000)
                             last_receive_time = time.time()  # 更新最后接收时间
+
+                            # 输出前几个字节用于调试
+                            self.logger.debug(f"数据前8字节: {[b for b in data[:8]]}")
 
                             try:
                                 csi_raw = struct.unpack("128b", data[4:])
@@ -212,6 +228,14 @@ class ReadFromUDP(ReceiveCSI):
                             except Exception as e:
                                 self.logger.error(f"处理CSI数据时发生未预期的错误: {e}")
 
+                        # 添加其他情况的日志
+                        elif data == b"HEART":
+                            self.logger.debug("收到心跳包")
+                        elif len(data) != 132:
+                            self.logger.warning(
+                                f"收到非标准长度数据包: {len(data)} 字节"
+                            )
+
                     except socket.timeout:
                         # 接收超时，记录日志但继续运行
                         current_time = time.time()
@@ -224,6 +248,14 @@ class ReadFromUDP(ReceiveCSI):
                     except socket.error as e:
                         self.logger.error(f"接收数据时发生socket错误: {e}")
                         time.sleep(1)  # 发生错误时等待1秒
+
+                # 线程结束时的统计
+                total_time = time.time() - start_time
+                if total_time > 0:
+                    final_rate = received_packets / total_time
+                    self.logger.info(
+                        f"最终接收频率: {final_rate:.2f} 包/秒，共 {received_packets} 包"
+                    )
 
             finally:
                 sock.close()
