@@ -9,6 +9,7 @@ from predict import Predictor
 
 LEN = 200  # 每个 CSI 数据的长度
 
+
 class StatusGenerator:
     def __init__(self, device_id="device1"):
         self.device_id = device_id
@@ -291,12 +292,12 @@ class StatusGenerator:
         while self.running:
             # 获取最新的未处理 CSI 数据
             self.logger.debug("尝试获取新的 CSI 数据...")
-            csi_data = self._fetch_csi_data(limit=LEN)
+            csi_data = self._fetch_csi_data(limit=LEN * 21)
 
             current_time = time.time()
 
             # 检查是否有足够的数据
-            if len(csi_data) == LEN:
+            if len(csi_data) == LEN * 21:
                 consecutive_empty_count = 0
                 last_success_time = current_time
 
@@ -305,6 +306,7 @@ class StatusGenerator:
                 csi_values = [self._parse_csi_json(row["csi_data"]) for row in csi_data]
                 data_ids = [row["id"] for row in csi_data]
 
+                csi_values = csi_values[LEN * 10 : LEN * 11]
                 # 调用机器学习模型进行预测
                 status, confidence = self._predict_status(csi_values)
 
